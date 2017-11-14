@@ -302,7 +302,12 @@ class MANGOS_DLL_SPEC WorldSession
         Player* GetPlayer() const { return _player; }
         char const* GetPlayerName() const;
         void SetSecurity(AccountTypes security) { _security = security; }
+#ifdef BUILD_PLAYERBOT
+        // Players connected without socket are bot
+        std::string const& GetRemoteAddress() const { return m_Socket ? m_Socket->GetRemoteAddress() : "bot"; }
+#else
         std::string const& GetRemoteAddress() const { return m_Address; }
+#endif
         std::string const& GetClientHash() const { return _clientHash; }
         void SetPlayer(Player *plr) { _player = plr; }
         void SetMasterPlayer(MasterPlayer *plr) { m_masterPlayer = plr; }

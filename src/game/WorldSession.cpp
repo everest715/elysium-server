@@ -53,6 +53,11 @@
 #include "NodesOpcodes.h"
 #include "MasterPlayer.h"
 
+#ifdef BUILD_PLAYERBOT
+#include "PlayerBots/PlayerbotMgr.h"
+#include "PlayerBots/PlayerbotAI.h"
+#endif
+
 // select opcodes appropriate for processing in Map::Update context for current session state
 static bool MapSessionFilterHelper(WorldSession* session, OpcodeHandler const& opHandle)
 {
@@ -138,6 +143,20 @@ char const* WorldSession::GetPlayerName() const
 /// Send a packet to the client
 void WorldSession::SendPacket(WorldPacket const* packet)
 {
+#ifdef BUILD_PLAYERBOT
+    // Send packet to bot AI
+    if (GetPlayer())
+    {
+        if (GetPlayer()->GetPlayerbotAI())
+            GetPlayer()->GetPlayerbotAI()->HandleBotOutgoingPacket(*packet);
+        else if (GetPlayer()->GetPlayerbotMgr())
+            GetPlayer()->GetPlayerbotMgr()->HandleMasterOutgoingPacket(*packet);
+    }
+
+    if (!m_Socket)
+        return;
+#endif
+
     // There is a maximum size packet.
     if (packet->size() > 0x8000)
     {
@@ -326,6 +345,35 @@ bool WorldSession::Update(PacketFilter& updater)
 
     if (m_Socket && !m_Socket->IsClosed() && m_warden)
         m_warden->Update();
+
+#ifdef BUILD_PLAYERBOT
+    // Process player bot packets
+    // The PlayerbotAI class adds to the packet queue to simulate a real player
+    // since Playerbots are known to the World obj only by its master's WorldSession object
+    // we need to process all master's bot's packets.
+    if (GetPlayer() && GetPlayer()->GetPlayerbotMgr()) {
+        for (PlayerBotMap::const_iterator itr = GetPlayer()->GetPlayerbotMgr()->GetPlayerBotsBegin();
+            itr != GetPlayer()->GetPlayerbotMgr()->GetPlayerBotsEnd(); ++itr)
+        {
+            Player* const botPlayer = itr->second;
+            WorldSession* const pBotWorldSession = botPlayer->GetSession();
+            if (botPlayer->IsBeingTeleported())
+                botPlayer->GetPlayerbotAI()->HandleTeleportAck();
+            else if (botPlayer->IsInWorld())
+            {
+                while (!pBotWorldSession->m_recvQueue.empty())
+                {
+                    auto const botpacket = std::move(pBotWorldSession->m_recvQueue.front());
+                    pBotWorldSession->m_recvQueue.pop_front();
+
+                    OpcodeHandler const& opHandle = opcodeTable[botpacket->GetOpcode()];
+                    pBotWorldSession->ExecuteOpcode(opHandle, *botpacket);
+                };
+                pBotWorldSession->m_recvQueue.clear();
+            }
+        }
+    }
+#endif
 
     //check if we are safe to proceed with logout
     //logout procedure should happen only in World::UpdateSessions() method!!!

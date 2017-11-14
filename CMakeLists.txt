@@ -15,7 +15,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-project(MaNGOS)
+project(Elysium)
 
 # CMake policies
 cmake_minimum_required(VERSION 3.0)
@@ -91,6 +91,7 @@ option(USE_ANTICHEAT "Use anticheat" 0)
 option(SCRIPTS "Compile scripts" 1)
 option(USE_EXTRACTORS "Compile extractors" 0)
 option(USE_UTILITY "Compile additional utility's" 0)
+option(BUILD_PLAYERBOT "Use playerbot" 0)
 
 find_package(PCHSupport)
 

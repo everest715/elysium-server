@@ -925,9 +925,6 @@ void World::LoadNostalriusConfig(bool reload)
 
     sAnticheatLib->LoadConfig();
 
-    // Bots
-    sPlayerBotMgr.LoadConfig();
-
     m_configNostalrius[CONFIG_PHASE_MAIL]                 = sConfig.GetIntDefault("Phase.Allow.Mail",      0);
     m_configNostalrius[CONFIG_PHASE_ITEM]                 = sConfig.GetIntDefault("Phase.Allow.Item",      0);
     m_configNostalrius[CONFIG_PHASE_WHO]                  = sConfig.GetIntDefault("Phase.Allow.WhoList",   0);
@@ -1595,7 +1592,9 @@ void World::SetInitialWorldSettings()
         sCharacterDatabaseCache.LoadAll();
 
         sLog.outString("Loading PlayerBot ..."); // Requires Players cache
-        sPlayerBotMgr.load();
+#ifdef BUILD_PLAYERBOT
+        PlayerbotMgr::SetInitialWorldSettings();
+#endif
 
         sLog.outString("Loading faction change ...");
         sObjectMgr.LoadFactionChangeReputations();

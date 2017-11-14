@@ -861,6 +861,10 @@ class MANGOS_DLL_SPEC ChatHandler
         //#INFO: Giperion was here
         bool HandleDebugShowNearestGOInfo(char* args);
 
+#ifdef BUILD_PLAYERBOT
+        bool HandlePlayerbotCommand(char* args);
+#endif
+
         Player*   getSelectedPlayer();
         Creature* getSelectedCreature();
         Unit*     getSelectedUnit();

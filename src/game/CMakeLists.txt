@@ -541,6 +541,10 @@ source_group("Anticheat"
   REGULAR_EXPRESSION Anticheat
 )
 
+source_group("PlayerBot"
+  REGULAR_EXPRESSION PlayerBot
+)
+
 if(PCH)
   include_directories(${CMAKE_CURRENT_BINARY_DIR})
 endif()
@@ -553,6 +557,11 @@ target_link_libraries(game
   shared
   detour
 )
+
+# Define BUILD_PLAYERBOT if need
+if (BUILD_PLAYERBOT)
+  add_definitions(-DBUILD_PLAYERBOT)
+endif()
 
 #add_dependencies(game revision.h)
 

@@ -48,6 +48,11 @@
 #include <vector>
 #include <functional>
 
+#ifdef BUILD_PLAYERBOT
+#include "PlayerBots/PlayerbotMgr.h"
+#include "PlayerBots/PlayerbotAI.h"
+#endif
+
 struct Mail;
 class Channel;
 class DynamicObject;
@@ -110,6 +115,17 @@ struct PlayerSpell
     bool dependent         : 1;                             // learned as result another spell learn, skill grow, quest reward, etc
     bool disabled          : 1;                             // first rank has been learned in result talent learn but currently talent unlearned, save max learned ranks
 };
+
+#ifdef BUILD_PLAYERBOT
+//002 Duble Talent from KuangZhan begin
+struct PlayerTalent
+{
+    UINT32 talentId;
+    UINT32 talentRank;
+    UINT32 tfNum;
+};
+//002 Duble Talent from KuangZhan end
+#endif
 
 typedef UNORDERED_MAP<uint32, PlayerSpell> PlayerSpellMap;
 
@@ -1307,6 +1323,17 @@ class MANGOS_DLL_SPEC Player final: public Unit
         void AddTimedQuest( uint32 quest_id ) { m_timedquests.insert(quest_id); }
         void RemoveTimedQuest( uint32 quest_id ) { m_timedquests.erase(quest_id); }
 
+#ifdef BUILD_PLAYERBOT
+        void chompAndTrim(std::string& str);
+        bool getNextQuestId(const std::string& pString, unsigned int& pStartPos, unsigned int& pId);
+        void skill(std::list<uint32>& m_spellsToLearn);
+        bool requiredQuests(const char* pQuestIdString);
+        uint32 GetSpec();
+
+        void _LoadTalent(UINT32 setTfNum);//002 Duble Talent from KuangZhan
+        void LearnTalent(uint32 talentId, uint32 talentRank, bool backToDb = true);//002 Duble Talent from KuangZhan
+#endif
+
         /*********************************************************/
         /***                   LOAD SYSTEM                     ***/
         /*********************************************************/
@@ -2113,6 +2140,22 @@ class MANGOS_DLL_SPEC Player final: public Unit
         // Changement de faction
         bool m_DbSaveDisabled;
 
+#ifdef BUILD_PLAYERBOT
+        // A Player can either have a playerbotMgr (to manage its bots), or have playerbotAI (if it is a bot), or
+        // neither. Code that enables bots must create the playerbotMgr and set it using SetPlayerbotMgr.
+        void SetPlayerbotAI(PlayerbotAI* ai) { assert(!m_playerbotAI && !m_playerbotMgr); m_playerbotAI = ai; }
+        PlayerbotAI* GetPlayerbotAI() { return m_playerbotAI; }
+        void SetPlayerbotMgr(PlayerbotMgr* mgr) { assert(!m_playerbotAI && !m_playerbotMgr); m_playerbotMgr = mgr; }
+        PlayerbotMgr* GetPlayerbotMgr() { return m_playerbotMgr; }
+        void SetBotDeathTimer() { m_deathTimer = 180; }
+        bool IsInDuel() const { return duel && duel->startTime != 0; }
+
+        bool IsSpellReady(uint32 spell_id)const
+        {
+            return !HasSpellCooldown(spell_id);
+        }
+#endif
+
         uint32 m_lastFromClientCastedSpellID;
         void SetLastCastedSpell(uint32 spell_id, bool byclient);
         uint32 GetLastCastedSpell(bool byclientonly);
@@ -2335,6 +2378,11 @@ class MANGOS_DLL_SPEC Player final: public Unit
         void SetJustBoarded(bool hasBoarded) { m_justBoarded = hasBoarded; }
         bool HasJustBoarded() { return m_justBoarded; }
 
+#ifdef BUILD_PLAYERBOT
+        std::vector<PlayerTalent*> m_Talent;//002 Duble Talent from KuangZhan
+        UINT32 m_CurrentTalent;//002 Duble Talent from KuangZhan
+#endif
+
     private:
         // internal common parts for CanStore/StoreItem functions
         InventoryResult _CanStoreItem_InSpecificSlot( uint8 bag, uint8 slot, ItemPosCountVec& dest, ItemPrototype const *pProto, uint32& count, bool swap, Item *pSrcItem ) const;
@@ -2412,6 +2460,11 @@ class MANGOS_DLL_SPEC Player final: public Unit
         int32 m_cannotBeDetectedTimer;
 
         uint32 m_bNextRelocationsIgnored;
+
+#ifdef BUILD_PLAYERBOT
+        PlayerbotAI* m_playerbotAI;
+        PlayerbotMgr* m_playerbotMgr;
+#endif
 
 public:
         /**
