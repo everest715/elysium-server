@@ -289,11 +289,11 @@ CombatManeuverReturns PlayerbotPriestAI::DoNextCombatManeuverPVE(Unit *pTarget)
         }
     }
 
-	if ((pTarget->GetEntry() == 14862 || pTarget->GetEntry() == 15340) && pTarget->GetPowerPercent() > 80)
-	{
-		if (MANA_BURN > 0 && m_ai->In_Reach(pTarget, MANA_BURN) && m_ai->CastSpell(MANA_BURN, *pTarget));
-		return RETURN_CONTINUE;
-	}
+    if ((pTarget->GetEntry() == 14862 || pTarget->GetEntry() == 15340) && pTarget->GetPowerPercent(POWER_MANA) > 80)
+    {
+        if (MANA_BURN > 0 && m_ai->In_Reach(pTarget, MANA_BURN) && m_ai->CastSpell(MANA_BURN, *pTarget));
+        return RETURN_CONTINUE;
+    }
 
     // Damage tweaking for healers
     if (m_ai->IsHealer())

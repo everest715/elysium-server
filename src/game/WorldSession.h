@@ -470,8 +470,6 @@ class MANGOS_DLL_SPEC WorldSession
 
         // Bot system
         std::stringstream _chatBotHistory;
-        PlayerBotEntry* GetBot() { return m_bot; }
-        void SetBot(PlayerBotEntry* b) { m_bot = b; }
 
         // Player online / socket offline system
         void SetDisconnectedSession(); // Remove from World::m_session. Used when an account gets disconnected.
@@ -944,7 +942,6 @@ class MANGOS_DLL_SPEC WorldSession
         WardenInterface* m_warden;
         std::string m_username;
         uint32 _floodPacketsCount[FLOOD_MAX_OPCODES_TYPE];
-        PlayerBotEntry* m_bot;
         uint32 m_lastReceivedPacketTime;
         ClientIdentifiersMap _clientIdentifiers;
         std::string     _clientHash;

@@ -1855,8 +1855,6 @@ void World::Update(uint32 diff)
     else
         m_MaintenanceTimeChecker -= diff;
 
-    //Update PlayerBotMgr
-    sPlayerBotMgr.update(diff);
     // Update AutoBroadcast
     sAutoBroadCastMgr.update(diff);
     // Update liste des ban si besoin

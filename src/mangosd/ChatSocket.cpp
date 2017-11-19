@@ -256,23 +256,8 @@ int OfflineChatSocket::handle_input(ACE_HANDLE)
     std::stringstream out;
     out << "ok\n";
     Player* player = sObjectAccessor.FindPlayer(ObjectGuid(playerGuid));
-    if (!player)
+    if (player)
     {
-        if (sess && sess->PlayerLoading())
-        {
-            sendf("err_loading\n");
-            return 0;
-        }
-        if (!sPlayerBotMgr.addBot(playerGuid, true))
-        {
-            sendf("err_internal\n");
-            return 0;
-        }
-    }
-    else
-    {
-        sPlayerBotMgr.AddTempBot(player->GetSession()->GetAccountId(), 20000);
-
         // Retrieve messages in queue
         if (messageType == OFFLINE_CHAT_GET_MESSAGES)
         {

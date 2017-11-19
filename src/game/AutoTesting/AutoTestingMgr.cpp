@@ -67,7 +67,6 @@ void SingleTest::ClearObjects()
         {
             if (obj->GetTypeId() == TYPEID_PLAYER)
             {
-                sPlayerBotMgr.deleteBot(obj->GetGUIDLow());
                 obj->ToPlayer()->GetSession()->LogoutPlayer(false);
             }
             else
@@ -166,7 +165,7 @@ void SingleTest::SpawnPlayer(uint32 id, uint8 _class, uint32 _race, float x, flo
 {
     ComputeCoords(x, y, z);
     PlayerCreatorAI* ai = new TestPlayerBotAI(this, id, _race, _class, _mapId, GetMap()->GetInstanceId(), x, y, z, o);
-    sPlayerBotMgr.addBot(ai);
+    //sPlayerBotMgr.addBot(ai);
 }
 
 Creature* SingleTest::SpawnCreature(uint32 num, uint32 entry, float x, float y, float z, float o)

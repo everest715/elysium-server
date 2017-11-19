@@ -2183,7 +2183,6 @@ void Player::AddToWorld()
         if (m_items[i])
             m_items[i]->AddToWorld();
     }
-    sPlayerBotMgr.OnPlayerInWorld(this);
     GetCheatData()->InitSpeeds(this);
 }
 
@@ -14229,7 +14228,7 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder)
 
     // check if the character's account in the db and the logged in account match.
     // player should be able to load/delete character only with correct account!
-    if (!GetSession()->GetBot() && dbAccountId != GetSession()->GetAccountId())
+    if (dbAccountId != GetSession()->GetAccountId())
     {
         sLog.outError("%s loading from wrong account (is: %u, should be: %u)",
                       guid.GetString().c_str(), GetSession()->GetAccountId(), dbAccountId);
@@ -14421,9 +14420,6 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder *holder)
             RelocateToHomebind();
         }
     }
-
-    if (PlayerBotEntry* e = GetSession()->GetBot())
-        e->ai->BeforeAddToMap(this);
 
     // player bounded instance saves loaded in _LoadBoundInstances, group versions at group loading
     DungeonPersistentState* state = GetBoundInstanceSaveForSelfOrGroup(GetMapId());
@@ -15624,9 +15620,6 @@ void Player::SaveToDB(bool online, bool force)
     // delay auto save at any saves (manual, in code, or autosave)
     m_nextSave = sWorld.getConfig(CONFIG_UINT32_INTERVAL_SAVE);
 
-    // Pas de sauvegarde des bots
-    if (GetSession()->GetBot())
-        return;
     if (m_DbSaveDisabled)
         return;
 
@@ -19331,7 +19324,7 @@ void Player::HandleFall(MovementInfo const& movementInfo)
     }
 }
 
-void Player::LearnTalent(uint32 talentId, uint32 talentRank)
+void Player::LearnTalent(uint32 talentId, uint32 talentRank, bool backToDb)
 {
     uint32 CurTalentPoints = GetFreeTalentPoints();
 
@@ -19434,6 +19427,19 @@ void Player::LearnTalent(uint32 talentId, uint32 talentRank)
     {
         sLog.outError("Talent.dbc have for talent: %u Rank: %u spell id = 0", talentId, talentRank);
         return;
+    }
+
+    if (backToDb)
+    {
+        CharacterDatabase.BeginTransaction();
+
+        static SqlStatementID insTalents;
+
+        SqlStatement stmtTalents = CharacterDatabase.CreateStatement(insTalents, "INSERT INTO character_talent (guid,talentId,talentRank,tfNum) VALUES (?, ?, ?, ?)");
+
+
+        stmtTalents.PExecute(GetGUIDLow(), talentId, talentRank, m_CurrentTalent);
+        CharacterDatabase.CommitTransaction();
     }
 
     // already known

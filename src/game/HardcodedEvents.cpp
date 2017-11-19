@@ -590,14 +590,6 @@ void SilithusWarEffortBattle::Enable()
         float FinalO = frand(0, M_PI_F * 2);
 
         RaceClassCombo RaceClass = AvaliableCombos[ComboID];
-
-        BattlePlayerAI* PlayerAi = new BattlePlayerAI(nullptr, RaceClass.Race, RaceClass.Class, EventPos.mapid, 14, FinalX, FinalY, FinalZ, FinalO);
-        if (sPlayerBotMgr.addBot(PlayerAi))
-        {
-            BotEventInfo EventInfo(PlayerAi);
-
-            Bots.push_back(EventInfo);
-        }
     }
 
 
@@ -605,8 +597,6 @@ void SilithusWarEffortBattle::Enable()
 
 void SilithusWarEffortBattle::Disable()
 {
-    sPlayerBotMgr.deleteAll();
-
     std::vector <Creature*> DeadCreatures;
 
     for (Creature* cr : SummonedMobs)
