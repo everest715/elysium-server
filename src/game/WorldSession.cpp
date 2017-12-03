@@ -485,7 +485,7 @@ bool WorldSession::CanProcessPackets() const
 {
     if (GetMasterSession())
         return true;
-    return ((m_Socket && !m_Socket->IsClosed()) || (_player && sPlayerBotMgr.IsChatBot(_player->GetGUIDLow())));
+    return m_Socket && !m_Socket->IsClosed();
 }
 
 void WorldSession::ProcessPackets(PacketFilter& updater)

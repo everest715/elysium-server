@@ -1332,6 +1332,8 @@ class MANGOS_DLL_SPEC Player final: public Unit
 
         void _LoadTalent(UINT32 setTfNum);//002 Duble Talent from KuangZhan
         void LearnTalent(uint32 talentId, uint32 talentRank, bool backToDb = true);//002 Duble Talent from KuangZhan
+
+        void JoinBattle();
 #endif
 
         /*********************************************************/

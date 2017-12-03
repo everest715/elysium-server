@@ -128,6 +128,7 @@ class MANGOS_DLL_SPEC MotionMaster : std::stack<MovementGenerator *>
         void MoveChase(Unit* target, float dist = 0.0f, float angle = 0.0f);
         void MoveConfused();
         void MoveFleeing(Unit* enemy, uint32 time = 0);
+        void MoveFleeing1(GameObject* enemy, uint32 time = 0);
         void MoveFeared(Unit* enemy, uint32 time = 0);
         void MovePoint(uint32 id, float x, float y, float z, uint32 options = MOVE_NONE, float speed = 0.0f, float finalOrientation = -10);
         void MoveSeekAssistance(float x,float y,float z);

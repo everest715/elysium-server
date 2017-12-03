@@ -2268,7 +2268,7 @@ void PlayerbotAI::DoNextCombatManeuver()
     // clear orders if current target for attacks doesn't make sense anymore
     if (!m_targetCombat || m_targetCombat->isDead() || !m_targetCombat->IsInWorld() || !m_bot->IsHostileTo(m_targetCombat) || !m_bot->IsInMap(m_targetCombat) ||
 		m_targetCombat->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NON_ATTACKABLE) || m_targetCombat->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NOT_SELECTABLE) || 
-		m_targetCombat->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER))
+		m_targetCombat->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_OOC_NOT_ATTACKABLE))
     {
         m_bot->AttackStop();
         m_bot->SetSelectionGuid(ObjectGuid());
@@ -4247,7 +4247,7 @@ bool PlayerbotAI::CastSpell(uint32 spellId)
     }
 
     // check spell cooldown
-    if (!m_bot->IsSpellReady(*pSpellInfo))
+    if (!m_bot->IsSpellReady(spellId))
         return false;
 
     // for AI debug purpose: uncomment the following line and bot will tell Master of every spell they attempt to cast
@@ -4384,7 +4384,7 @@ bool PlayerbotAI::CastPetSpell(uint32 spellId, Unit* target)
         return false;
     }
 
-    if (!pet->IsSpellReady(*pSpellInfo))
+    if (!pet->IsSpellReady(spellId))
         return false;
 
     // set target
@@ -5420,7 +5420,7 @@ void PlayerbotAI::FaceTarget(Unit* pTarget)
         return;
 
     // Only update orientation if not already facing target
-    if (!m_bot->HasInArc(pTarget))
+    if (!m_bot->HasInArc(M_PI_F, pTarget))
         m_bot->SetFacingTo(m_bot->GetAngle(pTarget));
 
     return;
@@ -8151,9 +8151,9 @@ void PlayerbotAI::_HandleCommandSkill(std::string &text, Player &fromPlayer)
                 if (visuals)
                 {
                     visuals = false;
-                    WorldPacket data(SMSG_PLAY_SPELL_VISUAL, 12);           // visual effect on trainer
-                    data << ObjectGuid(fromPlayer.GetSelectionGuid());
-                    data << uint32(0xB3);                                   // index from SpellVisualKit.dbc
+                    WorldPacket* data = new WorldPacket(SMSG_PLAY_SPELL_VISUAL, 12);           // visual effect on trainer
+                    *data << ObjectGuid(fromPlayer.GetSelectionGuid());
+                    *data << uint32(0xB3);                                   // index from SpellVisualKit.dbc
                     GetMaster()->GetSession()->SendPacket(data);
 /*
                     data.Initialize(SMSG_PLAY_SPELL_IMPACT, 12);            // visual effect on player

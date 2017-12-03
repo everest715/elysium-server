@@ -901,6 +901,8 @@ class MANGOS_DLL_SPEC WorldSession
         void HandleCancelTempEnchantmentOpcode(WorldPacket& recv_data);
 
         void HandleSetTaxiBenchmarkOpcode(WorldPacket& recv_data);
+
+        void HandleBattleFieldPortOpcodeEx(uint8 action, uint32 mapId);//009 bot auto Join battle
     private:
         // private trade methods
         void moveItems(Item* myItems[], Item* hisItems[]);

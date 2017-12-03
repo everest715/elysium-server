@@ -20610,3 +20610,20 @@ void Player::_LoadTalent(UINT32 setTfNum)
         delete result;
     }
 }
+
+//009 bot auto Join battle
+void Player::JoinBattle()
+{
+    SetCanDelayTeleport(true);
+    WorldSession * botWorldSessionPtr = this->GetSession();
+    botWorldSessionPtr->HandleBattleFieldPortOpcodeEx(1, this->GetPlayerbotAI()->GetBattleMapId());
+    {
+        // can be not set in fact for login opcode, but this not create porblems.
+        SetCanDelayTeleport(false);
+
+        // we should execute delayed teleports only for alive(!) players
+        // because we don't want player's ghost teleported from graveyard
+        if (IsHasDelayedTeleport())
+            TeleportTo(m_teleport_dest, m_teleport_options);
+    }
+}

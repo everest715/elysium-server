@@ -504,6 +504,50 @@ inline uint32 GetDispellMask(DispelType dispel)
         return (1 << dispel);
 }
 
+// Caster Centric Specific: A target cannot have more than one instance of specific per caster
+// This a relaxed rule and does not automatically exclude multi-ranking, multi-ranking should be handled separately (usually on effect stacking level)
+// Example: Curses. One curse per caster, Curse of Agony and Curse of Doom ranks are stackable among casters, the rest of curse stacking logic is handled on effect basis
+inline bool IsSpellSpecificUniquePerCaster(SpellSpecific specific)
+{
+    switch (int32(specific))
+    {
+    case SPELL_BLESSING:
+    case SPELL_AURA:
+    case SPELL_STING:
+    case SPELL_CURSE:
+    case SPELL_ASPECT:
+    case SPELL_JUDGEMENT:
+        return true;
+    default:
+        break;
+    }
+    return false;
+}
+
+// Compares two spell specifics
+inline bool IsSpellSpecificIdentical(SpellSpecific specific, SpellSpecific specific2)
+{
+    if (specific == specific2)
+        return true;
+    // Compare combined specifics
+    switch (int32(specific))
+    {
+    case SPELL_FOOD:
+        return specific2 == SPELL_FOOD ||
+            specific2 == SPELL_FOOD_AND_DRINK;
+    case SPELL_DRINK:
+        return specific2 == SPELL_DRINK ||
+            specific2 == SPELL_FOOD_AND_DRINK;
+    case SPELL_FOOD_AND_DRINK:
+        return specific2 == SPELL_FOOD ||
+            specific2 == SPELL_DRINK ||
+            specific2 == SPELL_FOOD_AND_DRINK;
+    default:
+        break;
+    }
+    return false;
+}
+
 // Spell affects related declarations (accessed using SpellMgr functions)
 typedef std::map<uint32, uint64> SpellAffectMap;
 

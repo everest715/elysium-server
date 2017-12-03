@@ -473,6 +473,127 @@ void WorldSession::HandleBattleFieldPortOpcode(WorldPacket &recv_data)
     }
 }
 
+void WorldSession::HandleBattleFieldPortOpcodeEx(uint8 action, uint32 mapId)//009 bot auto Join battle
+{
+
+    BattleGroundTypeId bgTypeId = GetBattleGroundTypeIdByMapId(mapId);
+
+    if (bgTypeId == BATTLEGROUND_TYPE_NONE)
+    {
+        sLog.outError("BattlegroundHandler: invalid bg map (%u) received.", mapId);
+        return;
+    }
+    if (!_player->InBattleGroundQueue())
+    {
+        sLog.outError("BattlegroundHandler: Invalid CMSG_BATTLEFIELD_PORT received from player (%u), he is not in bg_queue.", _player->GetGUIDLow());
+        return;
+    }
+
+    // get GroupQueueInfo from BattleGroundQueue
+    BattleGroundQueueTypeId bgQueueTypeId = BattleGroundMgr::BGQueueTypeId(bgTypeId);
+    BattleGroundQueue& bgQueue = sBattleGroundMgr.m_BattleGroundQueues[bgQueueTypeId];
+    // we must use temporary variable, because GroupQueueInfo pointer can be deleted in BattleGroundQueue::RemovePlayer() function
+    GroupQueueInfo ginfo;
+    if (!bgQueue.GetPlayerGroupInfoData(_player->GetObjectGuid(), &ginfo))
+    {
+        sLog.outError("BattlegroundHandler: itrplayerstatus not found.");
+        return;
+    }
+    // if action == 1, then instanceId is required
+    if (!ginfo.IsInvitedToBGInstanceGUID && action == 1)
+    {
+        sLog.outError("BattlegroundHandler: instance not found.");
+        return;
+    }
+
+    BattleGround* bg = sBattleGroundMgr.GetBattleGround(ginfo.IsInvitedToBGInstanceGUID, bgTypeId);
+
+    // bg template might and must be used in case of leaving queue, when instance is not created yet
+    if (!bg && action == 0)
+        bg = sBattleGroundMgr.GetBattleGroundTemplate(bgTypeId);
+    if (!bg)
+    {
+        sLog.outError("BattlegroundHandler: bg_template not found for type id %u.", bgTypeId);
+        return;
+    }
+
+    // some checks if player isn't cheating - it is not exactly cheating, but we cannot allow it
+    if (action == 1)
+    {
+        // if player is trying to enter battleground and he has deserter debuff, we must just remove him from queue
+        if (!_player->CanJoinToBattleground())
+        {
+            // send bg command result to show nice message
+            WorldPacket data2(SMSG_GROUP_JOINED_BATTLEGROUND, 4);
+            data2 << uint32(0xFFFFFFFE);
+            _player->GetSession()->SendPacket(&data2);
+            action = 0;
+            DEBUG_LOG("Battleground: player %s (%u) has a deserter debuff, do not port him to battleground!", _player->GetName(), _player->GetGUIDLow());
+        }
+        // if player don't match battleground max level, then do not allow him to enter! (this might happen when player leveled up during his waiting in queue
+        if (_player->getLevel() > bg->GetMaxLevel())
+        {
+            sLog.outError("Battleground: Player %s (%u) has level (%u) higher than maxlevel (%u) of battleground (%u)! Do not port him to battleground!",
+                _player->GetName(), _player->GetGUIDLow(), _player->getLevel(), bg->GetMaxLevel(), bg->GetTypeID());
+            action = 0;
+        }
+    }
+    uint32 queueSlot = _player->GetBattleGroundQueueIndex(bgQueueTypeId);
+    WorldPacket data;
+    switch (action)
+    {
+    case 1:                                         // port to battleground
+        if (!_player->IsInvitedForBattleGroundQueueType(bgQueueTypeId))
+            return;                                 // cheating?
+
+                                                    // resurrect the player
+        if (!_player->isAlive())
+        {
+            _player->ResurrectPlayer(1.0f);
+            _player->SpawnCorpseBones();
+        }
+        // stop taxi flight at port
+        if (_player->IsTaxiFlying())
+        {
+            _player->GetMotionMaster()->MovementExpired();
+            _player->m_taxi.ClearTaxiDestinations();
+        }
+
+        sBattleGroundMgr.BuildBattleGroundStatusPacket(&data, bg, queueSlot, STATUS_IN_PROGRESS, 0, bg->GetStartTime());
+        _player->GetSession()->SendPacket(&data);
+        // remove battleground queue status from BGmgr
+        bgQueue.RemovePlayer(_player->GetObjectGuid(), false);
+        // this is still needed here if battleground "jumping" shouldn't add deserter debuff
+        // also this is required to prevent stuck at old battleground after SetBattleGroundId set to new
+        if (BattleGround* currentBg = _player->GetBattleGround())
+            currentBg->RemovePlayerAtLeave(_player->GetObjectGuid(), false, true);
+
+        // set the destination instance id
+        _player->SetBattleGroundId(bg->GetInstanceID(), bgTypeId);
+        // set the destination team
+        _player->SetBGTeam(ginfo.GroupTeam);
+        // bg->HandleBeforeTeleportToBattleGround(_player);
+        sBattleGroundMgr.SendToBattleGround(_player, ginfo.IsInvitedToBGInstanceGUID, bgTypeId);
+        // add only in HandleMoveWorldPortAck()
+        // bg->AddPlayer(_player,team);
+        DEBUG_LOG("Battleground: player %s (%u) joined battle for bg %u, bgtype %u, queue type %u.", _player->GetName(), _player->GetGUIDLow(), bg->GetInstanceID(), bg->GetTypeID(), bgQueueTypeId);
+        break;
+    case 0:                                         // leave queue
+        _player->RemoveBattleGroundQueueId(bgQueueTypeId);  // must be called this way, because if you move this call to queue->removeplayer, it causes bugs
+        sBattleGroundMgr.BuildBattleGroundStatusPacket(&data, bg, queueSlot, STATUS_NONE, 0, 0);
+        bgQueue.RemovePlayer(_player->GetObjectGuid(), true);
+        // player left queue, we should update it
+        sBattleGroundMgr.ScheduleQueueUpdate(bgQueueTypeId, bgTypeId, _player->GetBattleGroundBracketIdFromLevel(bgTypeId));
+        SendPacket(&data);
+        DEBUG_LOG("Battleground: player %s (%u) left queue for bgtype %u, queue type %u.", _player->GetName(), _player->GetGUIDLow(), bg->GetTypeID(), bgQueueTypeId);
+        break;
+    default:
+        sLog.outError("Battleground port: unknown action %u", action);
+        break;
+    }
+}
+//009 bot auto Join battle
+
 void WorldSession::HandleLeaveBattlefieldOpcode(WorldPacket& recv_data)
 {
     DEBUG_LOG("WORLD: Recvd CMSG_LEAVE_BATTLEFIELD Message");
