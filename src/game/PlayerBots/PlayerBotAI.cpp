@@ -1437,83 +1437,52 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
             WorldPacket p(packet); // (8+1+4+1+1+4+4+4+4+4+1)
             ObjectGuid guid;
             uint8 loot_type;
+            uint32 gold;
+            uint8 items;
 
             p >> guid;      // 8 corpse guid
             p >> loot_type; // 1 loot type
+            p >> gold;      // 4 money on corpse
+            p >> items; // 1 number of items on corpse
 
-            // Create the loot object and check it exists
-            Loot* loot = sLootMgr.GetLoot(m_bot, guid);
-            if (!loot)
+            if (gold > 0)
             {
-                sLog.outError("PLAYERBOT Debug Error cannot get loot object info in SMSG_LOOT_RESPONSE!");
-                return;
+                WorldPacket* const packet = new WorldPacket(CMSG_LOOT_MONEY, 0);
+                m_bot->GetSession()->QueuePacket(packet);
             }
-
-            // Pickup money
-            if (loot->GetGoldAmount())
-                loot->SendGold(m_bot);
-
-            // Pick up the items
-            // Get the list of items first and iterate it
-            LootItemList lootList;
-            loot->GetLootItemsListFor(m_bot, lootList);
-
-            bool lootableItemsPresent = false;
-            for (LootItemList::const_iterator lootItr = lootList.begin(); lootItr != lootList.end(); ++lootItr)
+            for (uint8 i = 0; i < items; ++i)
             {
-                LootItem* lootItem = *lootItr;
+                uint32 itemid;
+                uint32 itemcount;
+                uint8 lootslot_type;
+                uint8 itemindex;
 
-                // Skip non lootable items
-                if (lootItem->GetSlotTypeForSharedLoot(m_bot, loot) != LOOT_SLOT_NORMAL)
+                p >> itemindex;         // 1 counter
+                p >> itemid;            // 4 itemid
+                p >> itemcount;         // 4 item stack count
+                p.read_skip<uint32>();  // 4 item model
+                p.read_skip<uint32>();  // 4 randomSuffix
+                p.read_skip<uint32>();  // 4 randomPropertyId
+                p >> lootslot_type;     // 1 LootSlotType
+
+                if (lootslot_type != LOOT_SLOT_TYPE_ALLOW_LOOT)
                     continue;
 
-                lootableItemsPresent = true;
-
-                // If bot is skinning or has collect all orders: autostore all items
-                // else bot has order to only loot quest or useful items
-                if (loot_type == LOOT_SKINNING || HasCollectFlag(COLLECT_FLAG_LOOT) || (loot_type == LOOT_CORPSE && (IsInQuestItemList(lootItem->itemid) || IsItemUseful(lootItem->itemid))))
+                // skinning or collect loot flag = just auto loot everything for getting object
+                // corpse = run checks
+                if (loot_type == LOOT_SKINNING || HasCollectFlag(COLLECT_FLAG_LOOT) ||
+                    (loot_type == LOOT_CORPSE && (IsInQuestItemList(itemid) || IsItemUseful(itemid))))
                 {
-                    // item may be blocked by roll system or already looted or another cheating possibility
-                    if (lootItem->is_blocked || lootItem->GetSlotTypeForSharedLoot(m_bot, loot) == MAX_LOOT_SLOT_TYPE)
-                    {
-                        sLog.outError("PLAYERBOT debug Bot %s have no right to loot itemId(%u)", m_bot->GetGuidStr().c_str(), lootItem->itemid);
-                        continue;
-                    }
-
-                    // Try to send the item to bot
-                    InventoryResult result = loot->SendItem(m_bot, lootItem);
-
-                    // If inventory is full: release loot
-                    if (result == EQUIP_ERR_INVENTORY_FULL)
-                    {
-                        loot->Release(m_bot);
-                        return;
-                    }
-
-                    ObjectGuid const& lguid = loot->GetLootGuid();
-
-                    // Check that bot has either equipped or received the item
-                    // then change item's loot state
-                    if (result == EQUIP_ERR_OK && lguid.IsItem())
-                    {
-                        if (Item* item = m_bot->GetItemByGuid(lguid))
-                            item->SetLootState(ITEM_LOOT_CHANGED);
-                    }
+                    WorldPacket* const packet = new WorldPacket(CMSG_AUTOSTORE_LOOT_ITEM, 1);
+                    *packet << itemindex;
+                    m_bot->GetSession()->QueuePacket(packet);
                 }
             }
 
-            if (!lootableItemsPresent)
-            {
-            // if previous is current, clear
-                if (m_lootPrev == m_lootCurrent)
-                    m_lootPrev = ObjectGuid();
-
-                // clear current target
-                m_lootCurrent = ObjectGuid();
-            }
-
             // release loot
-            loot->Release(m_bot);
+            WorldPacket* const packet = new WorldPacket(CMSG_LOOT_RELEASE, 8);
+            *packet << guid;
+            m_bot->GetSession()->QueuePacket(packet);
 
             return;
         }
@@ -1529,7 +1498,7 @@ void PlayerbotAI::HandleBotOutgoingPacket(const WorldPacket& packet)
             {
                 Creature *c = m_bot->GetMap()->GetCreature(m_lootCurrent);
 
-                if (c && c->GetCreatureInfo()->SkinningLootId && !c->GetLootStatus() != CREATURE_LOOT_STATUS_LOOTED)
+                if (c && c->GetCreatureInfo()->SkinLootId && !c->lootForSkin)
                 {
                     uint32 reqSkill = c->GetCreatureInfo()->GetRequiredLootSkill();
                     // check if it is a leather skin and if it is to be collected (could be ore or herb)
@@ -4644,55 +4613,61 @@ bool PlayerbotAI::PickPocket(Unit* pTarget)
     if(!pTarget)
         return false;
 
+    bool looted = false;
+
     ObjectGuid markGuid = pTarget->GetObjectGuid();
     Creature *c = m_bot->GetMap()->GetCreature(markGuid);
     if(c)
     {
-        Loot* loot = &c->loot;
-        if (!loot)
-            loot = new Loot(m_bot, c, LOOT_PICKPOCKETING);
-        else
+        m_bot->SendLoot(markGuid, LOOT_PICKPOCKETING);
+        Loot *loot = &c->loot;
+        uint32 lootNum = loot->GetMaxSlotInLootFor(m_bot->GetGUIDLow());
+
+        if (m_mgr->m_confDebugWhisper)
         {
-            if (loot->GetLootType() != LOOT_PICKPOCKETING)
-            {
-                delete loot;
-                loot = new Loot(m_bot, c, LOOT_PICKPOCKETING);
-            }
+            std::ostringstream out;
+
+            // calculate how much money bot loots
+            uint32 copper = loot->gold;
+            uint32 gold = uint32(copper / 10000);
+            copper -= (gold * 10000);
+            uint32 silver = uint32(copper / 100);
+            copper -= (silver * 100);
+
+            out << "|r|cff009900" << m_bot->GetName() << " loots: " << "|h|cffffffff[|r|cff00ff00" << gold
+                << "|r|cfffffc00g|r|cff00ff00" << silver
+                << "|r|cffcdcdcds|r|cff00ff00" << copper
+                << "|r|cff993300c"
+                << "|h|cffffffff]";
+
+            TellMaster(out.str().c_str());
         }
 
-        if (loot->GetGoldAmount())
+        if (loot->gold)
         {
-            m_bot->ModifyMoney(loot->GetGoldAmount());
-
-            if (m_mgr->m_confDebugWhisper)
-            {
-                std::ostringstream out;
-
-                // calculate how much money bot loots
-                uint32 copper = loot->GetGoldAmount();
-                uint32 gold = uint32(copper / 10000);
-                copper -= (gold * 10000);
-                uint32 silver = uint32(copper / 100);
-                copper -= (silver * 100);
-
-                out << "|r|cff009900" << m_bot->GetName() << " loots: " << "|h|cffffffff[|r|cff00ff00" << gold
-                    << "|r|cfffffc00g|r|cff00ff00" << silver
-                    << "|r|cffcdcdcds|r|cff00ff00" << copper
-                    << "|r|cff993300c"
-                    << "|h|cffffffff]";
-
-                TellMaster(out.str().c_str());
-            }
-
-            // send the money to the bot and remove it from the creature
-            loot->SendGold(m_bot);
+            m_bot->ModifyMoney(loot->gold);
+            loot->gold = 0;
+            loot->NotifyMoneyRemoved();
         }
 
-        if (!loot->AutoStore(m_bot, false, NULL_BAG, NULL_SLOT))
-            sLog.outDebug("PLAYERBOT Debug: Failed to get loot from pickpocketed NPC");
-
-        // release the loot whatever happened
-        loot->Release(m_bot);
+        for (uint32 l = 0; l < lootNum; l++)
+        {
+            QuestItem *qitem = 0, *ffaitem = 0, *conditem = 0;
+            LootItem *item = loot->LootItemInSlot(l, m_bot->GetGUIDLow(), &qitem, &ffaitem, &conditem);
+            if (!item)
+                continue;
+            ItemPosCountVec dest;
+            if (m_bot->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, item->itemid, item->count) == EQUIP_ERR_OK)
+            {
+                Item* pItem = m_bot->StoreNewItem(dest, item->itemid, true, item->randomPropertyId);
+                m_bot->SendNewItem(pItem, uint32(item->count), false, false, true);
+                --loot->unlootedCount;
+                looted = true;
+            }
+        }
+        // release loot
+        if (looted)
+            m_bot->GetSession()->DoLootRelease(markGuid);
     }
     return false; // ensures that the rogue only pick pockets target once
 }
