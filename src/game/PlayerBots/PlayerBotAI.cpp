@@ -4384,7 +4384,7 @@ bool PlayerbotAI::CastPetSpell(uint32 spellId, Unit* target)
         return false;
     }
 
-    if (!pet->IsSpellReady(spellId))
+    if (pet->HasSpellCooldown(spellId))
         return false;
 
     // set target
